@@ -16,6 +16,7 @@ import {
 import type { RawSourceMap } from '@vue/compiler-core'
 import { cssVarsPlugin } from './style/cssVars'
 import postcssModules from 'postcss-modules'
+import postcssNested from 'postcss-nested'
 
 export interface SFCStyleCompileOptions {
   source: string
@@ -112,6 +113,13 @@ export function doCompileStyle(
   const longId = `data-v-${shortId}`
 
   const plugins = (postcssPlugins || []).slice()
+  
+  // Add postcss-nested plugin to handle CSS nesting before scoped processing
+  const hasNesting = /[^{}]*\{[^{}]*\{/.test(source)
+  if (hasNesting) {
+    plugins.unshift(postcssNested())
+  }
+  
   plugins.unshift(cssVarsPlugin({ id: shortId, isProd }))
   if (trim) {
     plugins.push(trimPlugin())
