@@ -84,6 +84,16 @@ function processRule(id: string, rule: Rule) {
     }
     parent = parent.parent
   }
+  
+  // Handle nested rules first
+  if (rule.nodes) {
+    rule.nodes.forEach(node => {
+      if (node.type === 'rule') {
+        processRule(id, node as Rule)
+      }
+    })
+  }
+  
   rule.selector = selectorParser(selectorRoot => {
     selectorRoot.each(selector => {
       rewriteSelector(id, rule, selector, selectorRoot, deep)
@@ -101,6 +111,8 @@ function rewriteSelector(
 ) {
   let node: selectorParser.Node | null = null
   let shouldInject = !deep
+  let hasDeepCombinator = false
+  
   // find the last child node to insert attribute selector
   selector.each(n => {
     // DEPRECATED ">>>" and "/deep/" combinator
@@ -122,6 +134,7 @@ function rewriteSelector(
       // deep: inject [id] attribute at the node before the ::v-deep
       // combinator.
       if (value === ':deep' || value === '::v-deep') {
+        hasDeepCombinator = true
         ;(rule as any).__deep = true
         if (n.nodes.length) {
           // .foo ::v-deep(.bar) -> .foo[xxxxxxx] .bar
@@ -228,16 +241,18 @@ function rewriteSelector(
     }
   })
 
-  if (rule.nodes.some(node => node.type === 'rule')) {
-    const deep = (rule as any).__deep
-    if (!deep) {
+  // For nested rules, we need to handle the scoping differently
+  if (rule.nodes && rule.nodes.some(node => node.type === 'rule')) {
+    const ruleDeep = (rule as any).__deep || hasDeepCombinator
+    if (!ruleDeep) {
       extractAndWrapNodes(rule)
       const atruleNodes = rule.nodes.filter(node => node.type === 'atrule')
       for (const atnode of atruleNodes) {
         extractAndWrapNodes(atnode)
       }
     }
-    shouldInject = deep
+    // For nested rules with :deep(), we should inject the scope at the parent level
+    shouldInject = !ruleDeep
   }
 
   if (node) {

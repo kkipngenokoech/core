@@ -159,6 +159,17 @@ export const cssVarsPlugin: PluginCreator<CssVarsPluginOptions> = opts => {
         decl.value = transformed + value.slice(lastIndex)
       }
     },
+    Rule(rule) {
+      // Handle nested rules that might contain v-bind
+      if (rule.nodes) {
+        rule.nodes.forEach(node => {
+          if (node.type === 'rule') {
+            // Process nested rules recursively
+            this.Rule?.(node as any)
+          }
+        })
+      }
+    },
   }
 }
 cssVarsPlugin.postcss = true
